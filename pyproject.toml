@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=64"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -10,8 +10,27 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
+authors = [{ name = "Onur Taşhan" }]
+keywords = ["sqlfluff", "dbt", "dbt-oss", "lint", "sql", "templater"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Quality Assurance",
+]
 # Uses sqlfluff's internal Jinja tracer API; widen only after testing a new sqlfluff minor.
 dependencies = ["sqlfluff>=4.3,<4.4", "jinja2>=3", "regex", "pyyaml"]
+
+[project.urls]
+Homepage = "https://github.com/onurtashan/sqlfluff-templater-dbtoss"
+Repository = "https://github.com/onurtashan/sqlfluff-templater-dbtoss"
+Issues = "https://github.com/onurtashan/sqlfluff-templater-dbtoss/issues"
 
 [project.optional-dependencies]
 test = ["pytest"]
