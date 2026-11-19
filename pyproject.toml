@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sqlfluff-templater-dbtoss"
+version = "0.1.0"
+description = "sqlfluff templater that lints dbt models from dbt-oss (dbt v2) compiled output, without dbt-core"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+# Uses sqlfluff's internal Jinja tracer API; widen only after testing a new sqlfluff minor.
+dependencies = ["sqlfluff>=4.3,<4.4", "jinja2>=3", "regex", "pyyaml"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.entry-points.sqlfluff]
+sqlfluff_templater_dbtoss = "sqlfluff_templater_dbtoss"
+
+[tool.setuptools.packages.find]
+where = ["src"]
