@@ -82,3 +82,9 @@ def test_missing_compiled_file_is_a_templating_error(tmp_path):
     make_project(tmp_path, [])
     res = lint(tmp_path, ["target-x/compiled/demo"])
     assert [v.rule_code() for v in res.get_violations()] == ["TMP"]
+
+
+def test_fix_applies_fixes_from_every_variant(tmp_path):
+    dirs = make_project(tmp_path, [False, True])
+    lint(tmp_path, dirs, fix=True)
+    assert (tmp_path / "models" / "m.sql").read_text() == MODEL.replace("(select MAX(b)", "(SELECT MAX(b)")

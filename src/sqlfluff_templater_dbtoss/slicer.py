@@ -15,6 +15,7 @@ from sqlfluff.core.templaters.slicers.tracer import JinjaAnalyzer
 
 _ENV = Environment(extensions=["jinja2.ext.do", "jinja2.ext.loopcontrols"], keep_trailing_newline=True)
 _OPAQUE = ("set", "macro", "call", "block")
+_TIMEOUT = 10
 
 
 @dataclass
@@ -102,10 +103,44 @@ def build_tree(rs: list[RawFileSlice]) -> list[Node]:
                 pos += 1
         return nodes
 
-    tree = parse(())
+    try:
+        tree = parse(())
+    except IndexError as err:
+        raise SliceError("unbalanced template blocks (missing end tag)") from err
     if pos != len(rs):
         raise SliceError(f"unbalanced template blocks at raw slice {pos}")
     return tree
+
+
+def _plain_pattern(nodes: list[Node], rs: list[RawFileSlice], strip: list[bool]) -> str:
+    """Same shape as to_pattern, without capture groups; used to test other branches for ambiguity."""
+    out = []
+    for n in nodes:
+        if n.kind == "literal":
+            out.append("" if strip[n.idx] else regex.escape(rs[n.idx].raw))
+        elif n.kind == "templated":
+            out.append(".*?")
+        elif n.kind == "if":
+            alts = [_plain_pattern(body, rs, strip) for _, body in n.branches]
+            if not any(rs[t].tag == "else" for t, _ in n.branches):
+                alts.append("")
+            out.append(f"(?:{'|'.join(alts)})")
+        elif n.kind == "for":
+            out.append(f"(?:{_plain_pattern(n.children, rs, strip)})*")
+    return "".join(out)
+
+
+def _check_skeleton(tree: list[Node], rs: list[RawFileSlice], strip: list[bool], compiled: str) -> None:
+    """Fail fast when top-level literal SQL is missing from the compiled output (usually a stale compile)."""
+    pos = 0
+    for n in tree:
+        if n.kind != "literal" or strip[n.idx] or not rs[n.idx].raw.strip():
+            continue
+        found = compiled.find(rs[n.idx].raw, pos)
+        if found < 0:
+            line = rs[n.idx].raw.strip().splitlines()[0][:60]
+            raise SliceError(f"source text not found in the compiled SQL ({line!r}); is the compile stale?")
+        pos = found + len(rs[n.idx].raw)
 
 
 def to_pattern(nodes: list[Node], rs: list[RawFileSlice], strip: list[bool], counter: list[int]) -> str:
@@ -151,8 +186,12 @@ class _Cursor:
 
 def build_sliced_file(source: str, compiled: str, rs: list[RawFileSlice], tree: list[Node]):
     strip = _strip_flags(rs)
+    _check_skeleton(tree, rs, strip, compiled)
     pattern = to_pattern(tree, rs, strip, [0])
-    m = regex.fullmatch(pattern, compiled, flags=regex.DOTALL, timeout=20)
+    try:
+        m = regex.fullmatch(pattern, compiled, flags=regex.DOTALL, timeout=_TIMEOUT)
+    except TimeoutError as err:
+        raise SliceError(f"matching the compiled SQL took longer than {_TIMEOUT}s; is the compile stale?") from err
     if m is None:
         raise SliceError("compiled output does not match the source template structure")
     cur = _Cursor(m)
@@ -190,6 +229,17 @@ def build_sliced_file(source: str, compiled: str, rs: list[RawFileSlice], tree: 
                         raise SliceError(f"no branch matched at raw slice {n.idx}")
                 else:
                     bi, tag_idx, body, bspan = taken
+                    if bspan[1] > bspan[0]:
+                        text = compiled[bspan[0]:bspan[1]]
+                        for oi, (_, other) in enumerate(n.branches):
+                            if oi != bi and regex.fullmatch(
+                                _plain_pattern(other, rs, strip), text, flags=regex.DOTALL, timeout=_TIMEOUT
+                            ):
+                                # Lint results would be the same, but `fix` could edit the wrong branch.
+                                raise SliceError(
+                                    f"branches of the if at raw slice {n.idx} render the same text; "
+                                    "cannot tell which one ran"
+                                )
                     if bi > 0:
                         rec(tag_idx, a, a)
                     walk(body, bspan[0], bspan[1])
@@ -223,7 +273,7 @@ def restore_trailing_newlines(source: str, compiled: str) -> str:
 
     Same rule as sqlfluff-templater-dbt. Verified on dbt-oss 2.0.11: "a\\n\\n\\n" compiles to "a\\n\\n".
     """
-    if source.endswith("\n") and not source.rstrip().endswith("-%}"):
+    if source.endswith("\n") and not source.rstrip().endswith(("-%}", "-}}", "-#}")):
         return compiled + "\n"
     return compiled
 

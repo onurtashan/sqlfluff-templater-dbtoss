@@ -56,7 +56,7 @@ If a model has no compiled file, SQLFluff reports a `TMP` error for it. Run `dbt
 
 ## Lint every `is_incremental()` branch
 
-One compile renders one branch of each `{% if %}`. To lint both branches of `is_incremental()`, compile twice and list both directories. SQLFluff lints every directory in `compiled_dirs`; `fix` uses the first one.
+One compile renders one branch of each `{% if %}`. To lint both branches of `is_incremental()`, compile twice and list both directories. SQLFluff lints every directory in `compiled_dirs` and applies fixes found in any of them to the model file.
 
 ```bash
 mkdir -p macros/_lint_overlay
@@ -74,6 +74,8 @@ compiled_dirs = target-full/compiled/my_project, target-incremental/compiled/my_
 
 Do not use `--full-refresh` for the first compile. It has no effect on models with `full_refresh=false`.
 
+Run this in CI or in a scratch copy of the project. If the override file is left behind (for example after an interrupted run), later `dbt run`s use it too.
+
 ## How it works
 
 1. SQLFluff's own Jinja lexer (`JinjaAnalyzer`) splits the model into slices: literal SQL, `{{ }}`, `{% %}` tags, comments. This step does not render anything.
@@ -87,7 +89,10 @@ dbt renders with `keep_trailing_newline=False`, which drops one final newline. T
 
 - It uses SQLFluff internals (`JinjaAnalyzer`). The package pins one SQLFluff minor version. Test before you widen the pin.
 - Branches other than `is_incremental()` are linted only as far as one compile renders them. This is the same as the dbt templater.
-- The compiled SQL must come from the same model source. Lint after `dbt compile`, not before.
+- The compiled SQL must come from the same model source. Lint after `dbt compile`, not before. A stale compile gives a templating (`TMP`) error for that file; the file is not linted.
+- If two branches of an `{% if %}` render the same non-empty text, the plugin cannot tell which one ran. It reports a `TMP` error for that file instead of guessing, so `fix` never edits the wrong branch.
+- `{% call %}` and `{% filter %}` blocks that produce output, and `{% for %} … {% else %}`, are not supported yet. Most such files get a `TMP` error, but the output can also be counted as part of a neighbouring `{{ }}`. Do not rely on lint results in these files.
+- In nested loops, a violation is reported on the correct source line, but the loop iteration it came from is not tracked.
 
 ## Development
 

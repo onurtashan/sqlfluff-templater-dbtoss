@@ -29,8 +29,8 @@ class DbtOssTemplater(RawTemplater):
       project_dir    dbt project root (default ".")
       compiled_dirs  comma-separated compiled roots, relative to project_dir unless absolute.
                      Default: "target/compiled/<name from dbt_project.yml>".
-                     The first one is the variant that `fix` uses; the others are linted too
-                     (e.g. the other `is_incremental()` branch).
+                     Every dir is a variant (e.g. one per `is_incremental()` branch). SQLFluff lints
+                     all variants and applies fixes from all of them to the model source.
     """
 
     name = "dbtoss"
@@ -70,6 +70,10 @@ class DbtOssTemplater(RawTemplater):
                 tf = build_templated_file(in_str, compiled, fname)
             except SliceError as err:
                 raise SQLTemplaterError(f"dbtoss: cannot align {path} with {fname}: {err}") from err
+            except Exception as err:  # noqa: BLE001 - report one file, do not crash the whole lint run
+                raise SQLTemplaterError(
+                    f"dbtoss: internal error on {fname} ({type(err).__name__}: {err}). Please report it."
+                ) from err
             if tf.templated_str in seen:
                 continue
             seen.add(tf.templated_str)

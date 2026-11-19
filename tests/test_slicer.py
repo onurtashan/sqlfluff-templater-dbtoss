@@ -89,3 +89,37 @@ def test_config_block_and_trailing_newlines():
 def test_mismatch_raises():
     with pytest.raises(SliceError):
         build_templated_file("SELECT a\nFROM t\n", "SELECT b\nFROM t", "m.sql")
+
+
+def test_unbalanced_template_raises_slice_error():
+    with pytest.raises(SliceError, match="unbalanced"):
+        build_templated_file("SELECT 1\n{% if x %}\nWHERE a\n", "SELECT 1\n", "m.sql")
+
+
+def test_stale_compile_fails_fast_with_slice_error():
+    import time
+
+    cols = ", ".join(f"'c{i}'" for i in range(60))
+    src = "SELECT\n{% for c in [" + cols + "] %}\n    {{ c }} AS x_{{ loop.index }},\n{% endfor %}\n1 AS z\n"
+    compiled = render(src)
+    start = time.monotonic()
+    with pytest.raises(SliceError, match="stale"):
+        build_templated_file(src.replace("1 AS z", "2 AS z"), compiled, "m.sql")
+    assert time.monotonic() - start < 2
+
+
+@pytest.mark.parametrize("tail", ["{#- c -#}", "{{- '' -}}"])
+def test_no_trailing_newline_restored_after_right_strip(tail):
+    src = f"SELECT 1 {tail}\n"
+    check(src, render(src))
+
+
+def test_branches_with_the_same_text_are_rejected():
+    src = "SELECT 1\n{% if x %}WHERE a = 1{% else %}WHERE a = 1{% endif %}\n"
+    with pytest.raises(SliceError, match="same text"):
+        build_templated_file(src, render(src, x=False), "m.sql")
+
+
+def test_branches_that_render_nothing_are_accepted():
+    src = "{%- if x -%}{%- set a = 1 -%}{%- else -%}{%- set a = 2 -%}{%- endif -%}\nSELECT {{ a }}\n"
+    check(src, render(src, x=False))

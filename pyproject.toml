@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sqlfluff-templater-dbtoss"
-version = "0.1.0"
+version = "0.1.1"
 description = "sqlfluff templater that lints dbt models from dbt-oss (dbt v2) compiled output, without dbt-core"
 readme = "README.md"
 requires-python = ">=3.10"
