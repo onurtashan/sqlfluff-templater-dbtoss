@@ -88,3 +88,37 @@ def test_fix_applies_fixes_from_every_variant(tmp_path):
     dirs = make_project(tmp_path, [False, True])
     lint(tmp_path, dirs, fix=True)
     assert (tmp_path / "models" / "m.sql").read_text() == MODEL.replace("(select MAX(b)", "(SELECT MAX(b)")
+
+
+def test_snapshot_compiled_into_a_directory_is_found(tmp_path):
+    # dbt-oss writes a snapshot to <name>.sql/<name>.sql, not to <name>.sql.
+    (tmp_path / "dbt_project.yml").write_text("name: demo\nversion: '1.0'\n")
+    (tmp_path / "snapshots").mkdir()
+    (tmp_path / "snapshots" / "s.sql").write_text("SELECT a from t\n")
+    d = tmp_path / "target" / "compiled" / "demo" / "snapshots" / "s.sql"
+    d.mkdir(parents=True)
+    (d / "s.sql").write_text("SELECT a from t")
+    (tmp_path / ".sqlfluff").write_text("[sqlfluff]\ndialect = snowflake\ntemplater = dbtoss\nrules = CP01\n")
+    os.chdir(tmp_path)
+    result = Linter(config=FluffConfig.from_root()).lint_paths(["snapshots/s.sql"])
+    assert [v.rule_code() for v in result.get_violations()] == ["CP01"]
+
+
+def test_macro_files_are_skipped(tmp_path):
+    (tmp_path / "dbt_project.yml").write_text("name: demo\nversion: '1.0'\n")
+    (tmp_path / "macros").mkdir()
+    (tmp_path / "macros" / "m.sql").write_text("{% macro m() %}select 1{% endmacro %}\n")
+    (tmp_path / ".sqlfluff").write_text("[sqlfluff]\ndialect = snowflake\ntemplater = dbtoss\n")
+    os.chdir(tmp_path)
+    result = Linter(config=FluffConfig.from_root()).lint_paths(["macros/m.sql"])
+    assert result.get_violations() == []
+
+
+def test_generic_test_definitions_are_skipped(tmp_path):
+    (tmp_path / "dbt_project.yml").write_text("name: demo\nversion: '1.0'\n")
+    (tmp_path / "tests" / "generic").mkdir(parents=True)
+    (tmp_path / "tests" / "generic" / "t.sql").write_text("{% test t(model) %}select 1{% endtest %}\n")
+    (tmp_path / ".sqlfluff").write_text("[sqlfluff]\ndialect = snowflake\ntemplater = dbtoss\n")
+    os.chdir(tmp_path)
+    result = Linter(config=FluffConfig.from_root()).lint_paths(["tests/generic/t.sql"])
+    assert result.get_violations() == []
