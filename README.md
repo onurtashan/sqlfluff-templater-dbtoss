@@ -2,6 +2,8 @@
 
 A [SQLFluff](https://sqlfluff.com) templater that lints dbt models from **dbt-oss** (dbt v2, Apache-2.0) compiled output. It does not need dbt-core.
 
+How it works and how it was tested: [Linting dbt v2 models with SQLFluff — without dbt-core](https://medium.com/@onurtashan/linting-dbt-v2-models-with-sqlfluff-without-dbt-core-f82d64ba8ec2) (Medium).
+
 ## Why
 
 On dbt v2, the usual setup stops working:
