@@ -4,7 +4,7 @@ import os
 from typing import Any, Iterator, Optional
 
 from sqlfluff.core.config import FluffConfig
-from sqlfluff.core.errors import SQLTemplaterError
+from sqlfluff.core.errors import SQLFluffSkipFile, SQLTemplaterError
 from sqlfluff.core.formatter import FormatterInterface
 from sqlfluff.core.templaters.base import RawTemplater, TemplatedFile, large_file_check
 
@@ -20,6 +20,31 @@ def _project_name(project_dir: str) -> str:
             return str(yaml.safe_load(fh)["name"])
     except (OSError, KeyError, TypeError) as err:
         raise SQLTemplaterError(f"dbtoss: cannot read the project name from {path}; set compiled_dirs") from err
+
+
+def _macro_paths(project_dir: str) -> list[str]:
+    """Paths dbt reads as macros: macro-paths (default "macros") and <test-paths>/generic."""
+    try:
+        with open(os.path.join(project_dir, "dbt_project.yml"), encoding="utf-8") as fh:
+            project = yaml.safe_load(fh) or {}
+    except OSError:
+        project = {}
+    macro_paths = project.get("macro-paths") or ["macros"]
+    test_paths = project.get("test-paths") or ["tests"]
+    paths = [str(p) for p in macro_paths] + [os.path.join(str(p), "generic") for p in test_paths]
+    return [os.path.normpath(p) for p in paths]
+
+
+def _compiled_path(root: str, rel: str) -> Optional[str]:
+    """Return the compiled file for a source file, or None.
+
+    dbt-oss writes models, tests and analyses to ``<name>.sql``, but a snapshot to the
+    directory ``<name>.sql/`` with the SQL in ``<name>.sql/<name>.sql``.
+    """
+    path = os.path.join(root, rel)
+    if os.path.isdir(path):
+        path = os.path.join(path, os.path.basename(rel))
+    return path if os.path.isfile(path) else None
 
 
 class DbtOssTemplater(RawTemplater):
@@ -57,15 +82,21 @@ class DbtOssTemplater(RawTemplater):
     ) -> Iterator[tuple[TemplatedFile, list[SQLTemplaterError]]]:
         project_dir, compiled_dirs = self._settings(config)
         rel = os.path.relpath(os.path.abspath(fname), os.path.abspath(project_dir))
+        # Macro files are not compiled on their own. Skip them, like the dbt templater does.
+        if any(rel == p or rel.startswith(p + os.sep) for p in _macro_paths(project_dir)):
+            raise SQLFluffSkipFile(f"Skipped file {fname} because it is a macro")
         seen: set[str] = set()
         found = False
         for root in compiled_dirs:
-            path = os.path.join(root, rel)
-            if not os.path.exists(path):
+            path = _compiled_path(root, rel)
+            if path is None:
                 continue
             found = True
-            with open(path, encoding="utf-8") as fh:
-                compiled = fh.read()
+            try:
+                with open(path, encoding="utf-8") as fh:
+                    compiled = fh.read()
+            except OSError as err:
+                raise SQLTemplaterError(f"dbtoss: cannot read {path}: {err}") from err
             try:
                 tf = build_templated_file(in_str, compiled, fname)
             except SliceError as err:

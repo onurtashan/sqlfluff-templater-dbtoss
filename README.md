@@ -87,6 +87,9 @@ dbt renders with `keep_trailing_newline=False`, which drops one final newline. T
 
 ## Limits
 
+- Models, snapshots, analyses and singular tests are linted from their compiled SQL. Compile every path you lint, for example `dbt compile --select path:models path:snapshots path:analyses path:tests`.
+- Macro files (`macro-paths`) and generic test definitions (`<test-paths>/generic`) are skipped, like the dbt templater does. dbt does not compile them on their own.
+
 - It uses SQLFluff internals (`JinjaAnalyzer`). The package allows only the SQLFluff minor versions that CI tests (currently 4.3, 4.4 and 4.5). Test a new minor before you widen the pin.
 - Branches other than `is_incremental()` are linted only as far as one compile renders them. This is the same as the dbt templater.
 - The compiled SQL must come from the same model source. Lint after `dbt compile`, not before. A stale compile gives a templating (`TMP`) error for that file; the file is not linted.
