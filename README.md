@@ -87,7 +87,7 @@ dbt renders with `keep_trailing_newline=False`, which drops one final newline. T
 
 ## Limits
 
-- It uses SQLFluff internals (`JinjaAnalyzer`). The package pins one SQLFluff minor version. Test before you widen the pin.
+- It uses SQLFluff internals (`JinjaAnalyzer`). The package allows only the SQLFluff minor versions that CI tests (currently 4.3, 4.4 and 4.5). Test a new minor before you widen the pin.
 - Branches other than `is_incremental()` are linted only as far as one compile renders them. This is the same as the dbt templater.
 - The compiled SQL must come from the same model source. Lint after `dbt compile`, not before. A stale compile gives a templating (`TMP`) error for that file; the file is not linted.
 - If two branches of an `{% if %}` render the same non-empty text, the plugin cannot tell which one ran. It reports a `TMP` error for that file instead of guessing, so `fix` never edits the wrong branch.
