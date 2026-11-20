@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sqlfluff-templater-dbtoss"
-version = "0.1.1"
+version = "0.1.2"
 description = "sqlfluff templater that lints dbt models from dbt-oss (dbt v2) compiled output, without dbt-core"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -25,7 +25,7 @@ classifiers = [
     "Topic :: Software Development :: Quality Assurance",
 ]
 # Uses sqlfluff's internal Jinja tracer API; widen only after testing a new sqlfluff minor.
-dependencies = ["sqlfluff>=4.3,<4.4", "jinja2>=3", "regex", "pyyaml"]
+dependencies = ["sqlfluff>=4.3,<4.6", "jinja2>=3", "regex", "pyyaml"]
 
 [project.urls]
 Homepage = "https://github.com/onurtashan/sqlfluff-templater-dbtoss"

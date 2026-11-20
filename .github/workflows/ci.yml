@@ -22,3 +22,19 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[test]"
       - run: pytest -q
+
+  # The test matrix above installs the newest SQLFluff the pin allows. This job also runs
+  # the tests on every other allowed minor, because the templater uses SQLFluff internals.
+  sqlfluff-versions:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        sqlfluff-version: ["4.3.0", "4.4.0", "4.5.0"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - run: pip install -e ".[test]" "sqlfluff==${{ matrix.sqlfluff-version }}"
+      - run: pytest -q
