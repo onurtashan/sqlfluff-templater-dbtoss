@@ -78,6 +78,17 @@ Do not use `--full-refresh` for the first compile. It has no effect on models wi
 
 Run this in CI or in a scratch copy of the project. If the override file is left behind (for example after an interrupted run), later `dbt run`s use it too.
 
+## Macros that query the warehouse
+
+The templater never renders Jinja. `dbt compile` renders every model, so macros that need warehouse metadata (`run_query`, `dbt_utils.get_column_values`, `dbt_utils.star` and similar) resolve there, as in any compile. The lint step only reads the compiled files.
+
+- **Compile step:** needs the warehouse connection. Run it in the dbt-oss environment.
+- **Lint step:** needs no connection and no credentials. Run it in a separate environment with SQLFluff and this plugin.
+
+No model is kept out of the lint job. If a model does not compile, it has no compiled file, and SQLFluff reports a `TMP` error for it.
+
+The dbt templater on dbt-core also connects to the warehouse when it compiles. With this plugin, only the compile step needs the credentials.
+
 ## How it works
 
 1. SQLFluff's own Jinja lexer (`JinjaAnalyzer`) splits the model into slices: literal SQL, `{{ }}`, `{% %}` tags, comments. This step does not render anything.
